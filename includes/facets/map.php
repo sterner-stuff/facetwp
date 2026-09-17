@@ -189,33 +189,42 @@ class FacetWP_Facet_Map extends FacetWP_Facet
         $post_ids = array_unique( $post_ids );
 
         $all_coords = $this->get_coordinates( $post_ids, $this->map_facet );
+        
+        $marker_posts = new WP_Query([
+            'post__in' => $post_ids,
+        ]);
 
-        foreach ( $post_ids as $post_id ) {
-            if ( isset( $all_coords[ $post_id ] ) ) {
-                foreach ( $all_coords[ $post_id ] as $coords ) {
-                    $args = [
-                        'position' => $coords,
-                        'post_id' => $post_id,
-                    ];
+        if($marker_posts->have_posts()) {
+            while($marker_posts->have_posts()) {
+                $marker_posts->the_post();
+                $post_id = get_the_ID();
+                if ( isset( $all_coords[ $post_id ] ) ) {
+                    foreach ( $all_coords[ $post_id ] as $coords ) {
+                        $args = [
+                            'position' => $coords,
+                            'post_id' => $post_id,
+                        ];
 
-                    if ( 'yes' !== $this->map_facet['ajax_markers'] ) {
-                        $args['infoWindowContent'] = $this->get_marker_content( $post_id );
-                    }
+                        if ( 'yes' !== $this->map_facet['ajax_markers'] ) {
+                            $args['infoWindowContent'] = $this->get_marker_content( $post_id );
+                        }
 
-                    $args = apply_filters( 'facetwp_map_marker_args', $args, $post_id );
+                        $args = apply_filters( 'facetwp_map_marker_args', $args, $post_id );
 
-                    // back compat for legacy content arg
-                    // change content to infoWindowContent (if it exists*)
-                    // because content is now the pin arg in markers
-                    // *for ajax markers, infoWindowContent should not be set to ''
-                    if ( isset( $args['content'] ) ) $args['infoWindowContent'] = $args['content'];
+                        // back compat for legacy content arg
+                        // change content to infoWindowContent (if it exists*)
+                        // because content is now the pin arg in markers
+                        // *for ajax markers, infoWindowContent should not be set to ''
+                        if ( isset( $args['content'] ) ) $args['infoWindowContent'] = $args['content'];
 
-                    if ( false !== $args ) {
-                        $settings['locations'][] = $args;
+                        if ( false !== $args ) {
+                            $settings['locations'][] = $args;
+                        }
                     }
                 }
             }
         }
+        wp_reset_postdata();
 
         $output['settings']['map'] = $settings;
 
@@ -325,22 +334,12 @@ class FacetWP_Facet_Map extends FacetWP_Facet
             return '';
         }
 
-        global $post;
-
         ob_start();
-
-        // Set the main $post object
-        $post = get_post( $post_id );
-
-        setup_postdata( $post );
 
         // Remove UTF-8 non-breaking spaces
         $html = preg_replace( "/\xC2\xA0/", ' ', $content );
 
         eval( '?>' . $html );
-
-        // Reset globals
-        wp_reset_postdata();
 
         // Store buffered output
         return ob_get_clean();
